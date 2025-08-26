@@ -148,7 +148,8 @@ export default function HomePage() {
       const startLine = value.substring(0, selectionStart).split('\n').length - 1;
       const endLine = value.substring(0, selectionEnd).split('\n').length - 1;
 
-      const newLines = lines.map((line, index) => {
+      // Fix: Explicitly type the parameters
+      const newLines = lines.map((line: string, index: number) => {
         if (index >= startLine && index <= endLine) {
           return syntaxText + line;
         }

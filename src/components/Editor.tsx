@@ -1,20 +1,23 @@
 'use client';
 
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { EditorProps } from '@/types';
 
 /**
  * Markdown Editor Component
- * A textarea-based markdown editor with proper TypeScript event handling
+ * A textarea-based markdown editor with proper TypeScript event handling and ref forwarding
  */
-export function Editor({
+export const Editor = forwardRef<HTMLTextAreaElement, EditorProps>(({
   content,
   onChange,
   onCursorChange,
   className = '',
   placeholder = 'Start typing your markdown...',
-}: EditorProps) {
+}, ref) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Forward the ref to the textarea
+  useImperativeHandle(ref, () => textareaRef.current!, []);
 
   // Handle content changes with proper typing
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -58,7 +61,7 @@ export function Editor({
         let newSelectionStart = selectionStart;
         let newSelectionEnd = selectionEnd;
 
-        lines.forEach((line, index) => {
+        lines.forEach((line: string, index: number) => {
           if (index >= startLine && index <= endLine) {
             if (line.startsWith('  ')) {
               newContent += line.substring(2);
@@ -103,7 +106,7 @@ export function Editor({
           const startLine = value.substring(0, selectionStart).split('\n').length - 1;
           const endLine = value.substring(0, selectionEnd).split('\n').length - 1;
 
-          const newLines = lines.map((line, index) => {
+          const newLines = lines.map((line: string, index: number) => {
             if (index >= startLine && index <= endLine) {
               return '  ' + line;
             }
@@ -272,4 +275,6 @@ export function Editor({
       </div>
     </div>
   );
-}
+});
+
+Editor.displayName = 'Editor';
