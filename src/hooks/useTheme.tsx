@@ -1,3 +1,5 @@
+'use client';
+
 import { useEffect, useContext, createContext, ReactNode } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 import { Theme } from '@/types';
