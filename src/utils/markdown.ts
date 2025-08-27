@@ -1,21 +1,31 @@
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import Prism from 'prismjs';
+
+// Import core languages first
+import 'prismjs/components/prism-markup';
+import 'prismjs/components/prism-css';
+import 'prismjs/components/prism-clike';
 import 'prismjs/components/prism-javascript';
+
+// Import languages that depend on others
 import 'prismjs/components/prism-typescript';
 import 'prismjs/components/prism-jsx';
 import 'prismjs/components/prism-tsx';
-import 'prismjs/components/prism-css';
 import 'prismjs/components/prism-scss';
 import 'prismjs/components/prism-json';
 import 'prismjs/components/prism-bash';
 import 'prismjs/components/prism-python';
 import 'prismjs/components/prism-java';
 import 'prismjs/components/prism-csharp';
-import 'prismjs/components/prism-php';
 import 'prismjs/components/prism-sql';
 import 'prismjs/components/prism-yaml';
 import 'prismjs/components/prism-markdown';
+
+// Import PHP last as it has complex dependencies
+import 'prismjs/components/prism-markup-templating';
+import 'prismjs/components/prism-php';
+
 import { MarkdownOptions } from '@/types';
 
 /**
@@ -40,16 +50,40 @@ const highlightCode = (code: string, lang: string): string => {
   const normalizedLang = languageMap[lang] || lang;
 
   try {
-    // Check if language is supported
+    // Check if language is supported and properly loaded
     if (Prism.languages[normalizedLang]) {
-      return Prism.highlight(code, Prism.languages[normalizedLang], normalizedLang);
+      // Additional safety check for the language object
+      const language = Prism.languages[normalizedLang];
+      if (typeof language === 'object' && language !== null) {
+        return Prism.highlight(code, language, normalizedLang);
+      }
     }
   } catch (error) {
     console.warn(`Failed to highlight code with language "${normalizedLang}":`, error);
   }
 
-  // Fallback to plain text
-  return code;
+  // Fallback to plain text with HTML escaping
+  return code
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+};
+
+/**
+ * Check if we're in a browser environment
+ */
+const isBrowser = () => typeof window !== 'undefined';
+
+/**
+ * Get current origin safely
+ */
+const getCurrentOrigin = (): string => {
+  if (isBrowser() && window.location) {
+    return window.location.origin;
+  }
+  return '';
 };
 
 /**
@@ -72,7 +106,20 @@ const configureMarked = (options: MarkdownOptions = {
   // Custom code block renderer with syntax highlighting
   renderer.code = (code: string, language?: string) => {
     const lang = language || 'text';
-    const highlighted = options.highlight ? options.highlight(code, lang) : highlightCode(code, lang);
+    let highlighted: string;
+    
+    try {
+      highlighted = options.highlight ? options.highlight(code, lang) : highlightCode(code, lang);
+    } catch (error) {
+      console.warn(`Code highlighting failed for language "${lang}":`, error);
+      // Fallback to escaped plain text
+      highlighted = code
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
     
     return `
       <div class="code-block">
@@ -89,10 +136,11 @@ const configureMarked = (options: MarkdownOptions = {
     return `<code class="inline-code">${code}</code>`;
   };
 
-  // Custom link renderer with security
+  // Custom link renderer with security - FIXED for SSR
   renderer.link = (href: string, title: string | null, text: string) => {
     const titleAttr = title ? ` title="${title}"` : '';
-    const isExternal = href.startsWith('http') && !href.startsWith(window?.location?.origin || '');
+    const currentOrigin = getCurrentOrigin();
+    const isExternal = href.startsWith('http') && currentOrigin && !href.startsWith(currentOrigin);
     const relAttr = isExternal ? ' rel="noopener noreferrer"' : '';
     const targetAttr = isExternal ? ' target="_blank"' : '';
     
@@ -156,8 +204,8 @@ export const parseMarkdown = (markdown: string, options?: MarkdownOptions): stri
     // Parse markdown to HTML
     const html = markedInstance.parse(markdown) as string;
 
-    // Sanitize HTML if requested (default: true)
-    if (options?.sanitize !== false) {
+    // Sanitize HTML if requested (default: true) - Only in browser
+    if (options?.sanitize !== false && isBrowser() && typeof DOMPurify !== 'undefined') {
       return DOMPurify.sanitize(html, {
         ALLOWED_TAGS: [
           'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
